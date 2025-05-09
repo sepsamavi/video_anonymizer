@@ -5,7 +5,7 @@ This repo blurs faces in `.mp4` videos using [ultralytics YOLO](https://github.c
 
 ## Requirements
 ```
-pip install opencv-python ultralytics moviepy
+pip install opencv-python ultralytics moviepy tqdm
 ```
 
 ## Model weights
