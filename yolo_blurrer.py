@@ -2,6 +2,7 @@ from ultralytics import YOLO
 import cv2
 from moviepy import VideoFileClip
 import os
+import tqdm
 
 
 video_path = "video.mp4"
@@ -30,6 +31,9 @@ w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FR
 
 
 boxes_list = []
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+print(f"Extracting bounding boxes from {total_frames} frames...")
+pbar= tqdm.tqdm(total=int(total_frames), desc="Detecting bounding boxes")
 while cap.isOpened():
     success, im0 = cap.read()
     if not success:
@@ -37,16 +41,17 @@ while cap.isOpened():
         break
     boxes = None
     for model in models:
-        results0 = model.predict(im0, show=False)
+        # results0 = model.predict(im0, show=False)
+        results0 = model.track(im0, persist=True, show=False, verbose=False, conf = 0.5)
         boxes0 = results0[0].boxes.xyxy.cpu().tolist()
         if boxes is None:
             boxes = boxes0
         else:
             if boxes0 is not None:
                 boxes.extend(boxes0)
-
+    pbar.update(1)
     boxes_list.append(boxes)
-
+pbar.close()
 cap.release()
 
 # Now loop over and blur the frames and write them to a new temp video
@@ -55,6 +60,8 @@ print("Now blurring the detected objects in the video...")
 frame_idx = 0
 cap = cv2.VideoCapture(video_path)
 assert cap.isOpened(), "Error reading video file"
+
+pbar= tqdm.tqdm(total=int(total_frames), desc="Blurring and writing video")
 while cap.isOpened():
     success, im0 = cap.read()
     if not success:
@@ -78,10 +85,10 @@ while cap.isOpened():
 
                 # Replace the original face with the blurred version
                 im0[ymin:ymax, xmax:xmin] = blur_obj
-
+    pbar.update(1)
     video_writer.write(im0)
     frame_idx += 1
-
+pbar.close()
 cap.release()
 video_writer.release()
 
@@ -89,7 +96,8 @@ video_writer.release()
 clip = VideoFileClip(video_path)
 audio = clip.audio
 
-final_clip = VideoFileClip("object_blurring_output.avi")
+tempfile = video_path[:-4]+"_object_blurring_output.avi"
+final_clip = VideoFileClip(tempfile)
 final_clip.audio = audio
 
 split_video_path = video_path.split("/")
@@ -100,4 +108,4 @@ output_video_path = os.path.join("/".join(split_video_path[:-1]), output_file_na
 final_clip.write_videofile(output_video_path, codec="libx264", audio_codec="aac")
 
 # remove the temporary video file
-os.remove("object_blurring_output.avi")
+os.remove(tempfile)
